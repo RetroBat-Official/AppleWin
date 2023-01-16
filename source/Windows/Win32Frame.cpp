@@ -17,6 +17,7 @@
 
 Win32Frame::Win32Frame()
 {
+	m_pView = NULL;
 	m_toolbarPosition = ToolbarPosition::TOP;
 	m_fullScreenToolbarVisible = false;
 	g_pFramebufferinfo = NULL;
@@ -608,7 +609,6 @@ RECT Win32Frame::GetVideoRect()
 void Win32Frame::VideoPresentScreen(void)
 {
 	HDC hFrameDC = FrameGetDC();
-
 	if (hFrameDC)
 	{
 		Video& video = GetVideo();
@@ -626,6 +626,13 @@ void Win32Frame::VideoPresentScreen(void)
 
 		FillSolidRect(hFrameDC, rc.left, rc.top, rc.right, rc.bottom, IsFullScreen() ? 0 : RGB(8, 8, 8));
 		SelectClipRgn(hFrameDC, NULL);
+
+		if (m_pView != NULL)
+		{
+			Video& video = GetVideo();
+			m_pView->UpdateVideo(video);
+			return;
+		}
 
 		if (!IsFullScreen() || m_fullScreenToolbarVisible)
 		{

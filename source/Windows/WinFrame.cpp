@@ -1477,7 +1477,7 @@ LRESULT Win32Frame::WndProc(
 		int y = GET_Y_LPARAM(lparam);
 
 		RECT rc = GetToolbarRect();
-		BOOL fullScreenTb = IsFullScreen() && (buttonactive >= 0 || ::PtInRect(&rc, POINT{ x, y }));
+		BOOL fullScreenTb = m_pView == NULL && IsFullScreen() && (buttonactive >= 0 || ::PtInRect(&rc, POINT{ x, y }));
 		if (m_fullScreenToolbarVisible != fullScreenTb)
 		{
 			m_fullScreenToolbarVisible = fullScreenTb;
@@ -2093,6 +2093,7 @@ void Win32Frame::ProcessButtonClick(int button, bool bFromButtonUI /*=false*/)
     case BTN_SETUP:
       {
 		  GetPropertySheet().Init();
+		  OnSizeChanged();
 		  InvalidateRect(g_hFrameWindow, NULL, 1); // In case Integer scale changed
       }
       break;
@@ -2506,6 +2507,12 @@ void Win32Frame::OnSizeChanged()
 {
 	// Setup the tooltips for the new window size
 	SetupTooltipControls();
+
+	if (m_pView != NULL)
+	{
+		RECT rc = g_bStretchVideo ? GetClientArea() : GetVideoRect();
+		m_pView->UpdateBounds(rc);
+	}
 }
 
 //
@@ -2561,7 +2568,7 @@ void Win32Frame::FrameCreateWindow(void)
 		TEXT("APPLE2FRAME"),
 		g_pAppTitle.c_str(),
 		WS_THICKFRAME | WS_CAPTION | WS_SYSMENU |
-		WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE,
+		WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE/* | WS_CLIPCHILDREN | WS_CLIPSIBLINGS*/,
 		nXPos, nYPos, sz.cx, sz.cy,
 		HWND_DESKTOP,
 		(HMENU)0,
@@ -2577,8 +2584,8 @@ void Win32Frame::FrameCreateWindow(void)
 
 	SendMessage(tooltipwindow, TTM_SETDELAYTIME, TTDT_INITIAL, GetDoubleClickTime());
 	SendMessage(tooltipwindow, TTM_SETDELAYTIME, TTDT_RESHOW, GetDoubleClickTime() / 2);
-
 	SetupTooltipControls();
+
 	OnSizeChanged();
 
 	_ASSERT(g_TimerIDEvent_100msec == 0);
@@ -2919,4 +2926,156 @@ bool Win32Frame::GetBestDisplayResolutionForFullScreen(UINT& bestWidth, UINT& be
 	m_bestWidthForFullScreen = bestWidth;
 	m_bestHeightForFullScreen = bestHeight;
 	return true;
+}
+
+#include <gl/GL.h>
+
+ViewControl::ViewControl(HWND hWndParent)
+{
+	m_glTextureId = 0;
+	m_hGlRC = 0;
+
+	HINSTANCE hInstance = GetModuleHandle(NULL);
+
+	WNDCLASSEX WndClassEx;
+	WndClassEx.cbClsExtra = 0;
+	WndClassEx.cbSize = sizeof(WNDCLASSEX);
+	WndClassEx.cbWndExtra = 0;
+	WndClassEx.hbrBackground = (HBRUSH)0;
+	WndClassEx.hCursor = LoadCursor(NULL, IDC_ARROW);
+	WndClassEx.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+	WndClassEx.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
+	WndClassEx.hInstance = hInstance;
+	WndClassEx.lpfnWndProc = DefWindowProc;
+	WndClassEx.lpszClassName = "OpenGLWnd";
+	WndClassEx.lpszMenuName = NULL;
+	WndClassEx.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+	RegisterClassEx(&WndClassEx);
+	
+	m_hWnd = CreateWindowEx(WS_EX_TRANSPARENT, "OpenGLWnd", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN, 0, 0, 10, 10, hWndParent, (HMENU)0, hInstance, NULL);
+
+	m_hDC = GetDC(m_hWnd);
+
+	static PIXELFORMATDESCRIPTOR pfd = {
+		sizeof(PIXELFORMATDESCRIPTOR),
+		1,                     // version number 
+		PFD_DRAW_TO_WINDOW |   // support window 
+		PFD_SUPPORT_OPENGL |   // support OpenGL 
+		PFD_DOUBLEBUFFER,      // double buffered 
+		PFD_TYPE_RGBA,         // RGBA type 
+		24,                    // 24-bit color depth 
+		0, 0, 0, 0, 0, 0,      // color bits ignored 
+		0,                     // no alpha buffer 
+		0,                     // shift bit ignored 
+		0,                     // no accumulation buffer 
+		0, 0, 0, 0,            // accum bits ignored 
+		32,                    // 32-bit z-buffer     
+		0,                     // no stencil buffer 
+		0,                     // no auxiliary buffer 
+		PFD_MAIN_PLANE,        // main layer 
+		0,                     // reserved 
+		0, 0, 0                // layer masks ignored 
+		};
+
+	wglMakeCurrent(m_hDC, NULL);
+
+	int  iPixelFormat;	
+	if ((iPixelFormat = ChoosePixelFormat(m_hDC, &pfd)) == 0)
+		return;
+
+	if (SetPixelFormat(m_hDC, iPixelFormat, &pfd) == FALSE)
+		return;
+	
+	m_hGlRC = ::wglCreateContext(m_hDC);
+
+	wglMakeCurrent(m_hDC, m_hGlRC);
+
+	glDisable(GL_CULL_FACE);
+	glEnable(GL_TEXTURE_2D);
+
+	glGenTextures(1, &m_glTextureId);
+
+	glBindTexture(GL_TEXTURE_2D, m_glTextureId);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+	glPushAttrib(GL_ENABLE_BIT);
+
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+
+	glClearColor(0.0f, 1.0f, 1.0f, 1.0f);
+	SwapBuffers(m_hDC);
+}
+
+void ViewControl::UpdateBounds(const RECT& rect)
+{
+	m_size.cx = rect.right - rect.left;
+	m_size.cy = rect.bottom - rect.top;
+
+	SetWindowPos(m_hWnd, NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER | SWP_NOACTIVATE);
+	
+	glViewport(0, 0, m_size.cx, m_size.cy);
+
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(0, m_size.cx, m_size.cy, 0, 0.0f, 1.0f);
+
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+}
+
+void ViewControl::UpdateVideo(Video& video)
+{
+	wglMakeCurrent(m_hDC, m_hGlRC);
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glLoadIdentity();
+
+	glEnable(GL_TEXTURE_2D);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glBindTexture(GL_TEXTURE_2D, m_glTextureId);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+		(int)video.GetFrameBufferWidth(),
+		(int)video.GetFrameBufferHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE,
+		video.GetFrameBuffer());
+
+	glBegin(GL_QUADS);	
+	glTexCoord2f(0.0f, 0.0f);
+	glVertex3i(0, m_size.cy, 0);
+	glTexCoord2f(1.0f, 0.0f);
+	glVertex3i(m_size.cx, m_size.cy, 0);
+	glTexCoord2f(1.0f, 1.0f);
+	glVertex3i(m_size.cx, 0, 0);
+	glTexCoord2f(0.0f, 1.0f);
+	glVertex3i(0, 0, 0);
+	glEnd();
+	
+	glDisable(GL_BLEND);
+
+	SwapBuffers(m_hDC);
+}
+
+void Win32Frame::SetFullStretch(bool bShow)
+{
+	g_bIntegerScale = false;
+	g_bStretchVideo = bShow;
+}
+
+void Win32Frame::SetUseOpenGL()
+{
+	if (m_pView != NULL)
+		return;
+	
+	m_pView = new ViewControl(g_hFrameWindow);
+	OnSizeChanged();	
 }

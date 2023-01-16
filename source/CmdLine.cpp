@@ -290,6 +290,18 @@ bool ProcessCmdLine(LPSTR lpCmdLine)
 		{
 			g_cmdLine.setFullScreen = 0;
 		}
+		else if (strcmp(lpCmdLine, "-opengl") == 0)
+		{
+			g_cmdLine.openGL = 1;
+		}
+		else if (strcmp(lpCmdLine, "-stretch") == 0)
+		{
+			g_cmdLine.fullStretch = 1;
+		}
+		else if (strcmp(lpCmdLine, "-no-stretch") == 0)
+		{
+			g_cmdLine.fullStretch = 0;
+		}
 #define CMD_FS_WIDTH "-fs-width="
 		else if (strncmp(lpCmdLine, CMD_FS_WIDTH, sizeof(CMD_FS_WIDTH)-1) == 0)
 		{

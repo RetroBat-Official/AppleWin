@@ -977,6 +977,12 @@ static void RepeatInitialization(void)
 				PostMessage(GetFrame().g_hFrameWindow, WM_USER_BOOT, 0, 0);
 				g_cmdLine.bBoot = false;
 			}
+
+			if (g_cmdLine.openGL > 0)
+				GetFrame().SetUseOpenGL();
+
+			if (g_cmdLine.fullStretch >= 0)
+				GetFrame().SetFullStretch(g_cmdLine.fullStretch);
 		}
 }
 

@@ -295,7 +295,7 @@ BEGIN
         BEGIN
             VALUE "Comments", "https://github.com/AppleWin"
             VALUE "CompanyName", "AppleWin"
-            VALUE "FileDescription", "Apple //e Emulator for Windows"
+            VALUE "FileDescription", "Apple //e Emulator for Retrobat"
             VALUE "FileVersion", APPLEWIN_VERSION_STR
             VALUE "InternalName", "APPLEWIN"
             VALUE "LegalCopyright", " 1994-2024 Michael O'Brien, Oliver Schmidt, Tom Charlesworth, Michael Pohoreski, Nick Westgate, Linards Ticmanis"

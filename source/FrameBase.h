@@ -27,6 +27,8 @@ public:
 	virtual void FrameUpdateApple2Type() = 0;
 	virtual void FrameSetCursorPosByMousePos() = 0;
 
+	virtual void SetUseOpenGL() = 0;
+	virtual void SetFullStretch(bool bShow) = 0;
 	virtual void SetIntegerScale(bool bShow) = 0;
 	virtual void SetStretchVideo(bool bShow) = 0;	
 	virtual void SetWindowedModeShowDiskiiStatus(bool bShow) = 0;

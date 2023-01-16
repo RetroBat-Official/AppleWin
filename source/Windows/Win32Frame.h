@@ -13,9 +13,27 @@ class Video;
 // Comment to render without black borders
 #define RENDER_BORDERMARGIN 1
 
+class ViewControl
+{
+public:
+	ViewControl(HWND hWndParent);
+	void UpdateBounds(const RECT& rect);
+	void UpdateVideo(Video& video);
+
+private:
+	HWND m_hWnd;
+	HDC  m_hDC;
+	HGLRC m_hGlRC;
+
+	SIZE m_size;
+	unsigned int m_glTextureId;
+};
+
 class Win32Frame : public FrameBase
 {
 public:
+	ViewControl* m_pView;
+
 	Win32Frame(void);
 	virtual ~Win32Frame(void){}
 
@@ -29,6 +47,8 @@ public:
 	virtual void FrameUpdateApple2Type();
 	virtual void FrameSetCursorPosByMousePos();
 
+	virtual void SetUseOpenGL();
+	virtual void SetFullStretch(bool bShow);
 	virtual void SetIntegerScale(bool bShow);
 	virtual void SetStretchVideo(bool bShow);
 	virtual void SetWindowedModeShowDiskiiStatus(bool bShow);
